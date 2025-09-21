@@ -20,7 +20,7 @@ class ProfileApp {
 
     checkAuth() {
         this.jwt = sessionStorage.getItem('jwt');
-        if (this.jwt) {
+        if (this.jwt && this.jwt.trim()) {
             this.showProfile();
         } else {
             this.showLogin();
@@ -56,15 +56,20 @@ class ProfileApp {
             });
 
             if (response.ok) {
-                this.jwt = await response.text();
+                const responseText = await response.text();
+                // Remove quotes if present and clean the token
+                this.jwt = responseText.replace(/^"|"$/g, '').trim();
                 sessionStorage.setItem('jwt', this.jwt);
                 errorDiv.textContent = '';
                 this.showProfile();
             } else {
+                const errorText = await response.text();
                 errorDiv.textContent = 'Invalid credentials. Please try again.';
+                console.error('Login failed:', response.status, errorText);
             }
         } catch (error) {
             errorDiv.textContent = 'Login failed. Please check your connection.';
+            console.error('Login error:', error);
         }
     }
 
@@ -77,6 +82,8 @@ class ProfileApp {
 
     async graphqlQuery(query, variables = {}) {
         try {
+            console.log('Making GraphQL request with JWT:', this.jwt ? 'Present' : 'Missing');
+            
             const response = await fetch(this.apiUrl, {
                 method: 'POST',
                 headers: {
@@ -86,7 +93,10 @@ class ProfileApp {
                 body: JSON.stringify({ query, variables })
             });
 
+            console.log('GraphQL response status:', response.status);
+
             if (response.status === 401) {
+                console.error('JWT token expired or invalid');
                 this.logout();
                 return null;
             }
@@ -94,10 +104,12 @@ class ProfileApp {
             const result = await response.json();
             if (result.errors) {
                 console.error('GraphQL errors:', result.errors);
+                this.showError('GraphQL query failed: ' + result.errors[0].message);
             }
             return result.data;
         } catch (error) {
             console.error('GraphQL request failed:', error);
+            this.showError('Network error: Failed to connect to GraphQL API');
             return null;
         }
     }
