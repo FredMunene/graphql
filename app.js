@@ -230,11 +230,20 @@ class ProfileApp {
         }
     }
 
+    formatXP(bytes) {
+        if (bytes >= 1000000) {
+            return `${(bytes / 1000000).toFixed(1)} MB`;
+        } else if (bytes >= 1000) {
+            return `${(bytes / 1000).toFixed(1)} kB`;
+        }
+        return `${bytes} B`;
+    }
+
     updateStats(transactions, results) {
         // Calculate total XP (only XP type transactions)
         const xpTransactions = transactions.filter(t => t.type === 'xp');
         const totalXP = xpTransactions.reduce((sum, t) => sum + t.amount, 0);
-        document.getElementById('total-xp').textContent = totalXP.toLocaleString();
+        document.getElementById('total-xp').textContent = this.formatXP(totalXP);
 
         // Calculate projects completed (unique objectIds with XP > 0)
         const completedProjects = new Set(
@@ -326,33 +335,6 @@ class ProfileApp {
         path.setAttribute('d', pathData);
         path.setAttribute('class', 'line-path');
         svg.appendChild(path);
-
-        // Add data points
-        cumulativeValues.forEach((val, i) => {
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('cx', xScale(i));
-            circle.setAttribute('cy', yScale(val));
-            circle.setAttribute('r', 4);
-            circle.setAttribute('fill', '#667eea');
-            circle.setAttribute('stroke', 'white');
-            circle.setAttribute('stroke-width', 2);
-            
-            // Add tooltip with event info
-            circle.addEventListener('mouseenter', (e) => {
-                const dayTransactions = xpTransactions.filter(t => 
-                    new Date(t.createdAt).toDateString() === dates[i]
-                );
-                const eventInfo = dayTransactions.length > 0 && dayTransactions[0].eventId 
-                    ? ` (${eventMap[dayTransactions[0].eventId] || 'Unknown Event'})` 
-                    : '';
-                this.showTooltip(e, `${dates[i]}: ${val.toLocaleString()} XP${eventInfo}`);
-            });
-            circle.addEventListener('mouseleave', () => {
-                this.hideTooltip();
-            });
-            
-            svg.appendChild(circle);
-        });
     }
 
     renderRatioChart(results) {
@@ -565,7 +547,7 @@ class ProfileApp {
 
             rect.addEventListener('mouseenter', (e) => {
                 const eventName = eventMap[eventId] || `Event ${eventId}`;
-                this.showTooltip(e, `${eventName}: ${value.toLocaleString()} XP`);
+                this.showTooltip(e, `${eventName}: ${this.formatXP(value)}`);
             });
             rect.addEventListener('mouseleave', () => {
                 this.hideTooltip();
