@@ -148,8 +148,7 @@ class ProfileApp {
             query {
                 user {
                     id
-                    githubLogin
-                    campus
+                    login
                 }
             }
         `;
@@ -161,7 +160,7 @@ class ProfileApp {
     async fetchTransactionData() {
         const query = `
             query {
-                transaction(order_by: {createdAt: asc}) {
+                transaction {
                     type
                     amount
                     createdAt
@@ -178,12 +177,10 @@ class ProfileApp {
     async fetchResultData() {
         const query = `
             query {
-                result(where: {type: {_in: ["tester", "user_audit"]}}) {
+                result {
                     grade
                     objectId
                     type
-                    createdAt
-                    path
                 }
             }
         `;
@@ -195,7 +192,7 @@ class ProfileApp {
     async fetchObjectData() {
         const query = `
             query {
-                object(where: {type: {_in: ["project", "exercise"]}}) {
+                object {
                     id
                     name
                     type
@@ -209,7 +206,7 @@ class ProfileApp {
 
     updateUserInfo(userData) {
         if (userData) {
-            document.getElementById('user-login').textContent = userData.githubLogin;
+            document.getElementById('user-login').textContent = userData.login || `User ${userData.id}`;
             document.getElementById('user-id').textContent = `ID: ${userData.id}`;
         }
     }
