@@ -130,11 +130,14 @@ class ProfileApp {
             
             // Fetch object data for better labeling
             const objectData = await this.fetchObjectData();
+            
+            // Fetch event data for XP classification
+            const eventData = await this.fetchEventData();
 
             // Update UI
             this.updateUserInfo(userData);
             this.updateStats(transactionData, resultData);
-            this.renderCharts(transactionData, resultData, objectData);
+            this.renderCharts(transactionData, resultData, objectData, eventData);
 
         } catch (error) {
             this.showError('Failed to load profile data');
@@ -166,6 +169,7 @@ class ProfileApp {
                     createdAt
                     path
                     objectId
+                    eventId
                 }
             }
         `;
@@ -204,6 +208,21 @@ class ProfileApp {
         return data?.object || [];
     }
 
+    async fetchEventData() {
+        const query = `
+            query {
+                event {
+                    id
+                    path
+                    objectId
+                }
+            }
+        `;
+        
+        const data = await this.graphqlQuery(query);
+        return data?.event || [];
+    }
+
     updateUserInfo(userData) {
         if (userData) {
             document.getElementById('user-login').textContent = userData.login || `User ${userData.id}`;
@@ -231,14 +250,24 @@ class ProfileApp {
         const totalAttempts = validResults.length;
         const successRate = totalAttempts > 0 ? Math.round((passCount / totalAttempts) * 100) : 0;
         document.getElementById('success-rate').textContent = `${successRate}%`;
+
+        // Show XP breakdown by events in console for debugging
+        const xpByEvent = {};
+        xpTransactions.forEach(t => {
+            if (t.eventId) {
+                xpByEvent[t.eventId] = (xpByEvent[t.eventId] || 0) + t.amount;
+            }
+        });
+        console.log('XP by Event:', xpByEvent);
     }
 
-    renderCharts(transactions, results, objects = []) {
-        this.renderXPChart(transactions);
+    renderCharts(transactions, results, objects = [], events = []) {
+        this.renderXPChart(transactions, events);
         this.renderRatioChart(results);
+        this.renderEventXPChart(transactions, events);
     }
 
-    renderXPChart(transactions) {
+    renderXPChart(transactions, events = []) {
         const svg = document.getElementById('xp-chart');
         svg.innerHTML = '';
 
@@ -249,6 +278,12 @@ class ProfileApp {
             this.showEmptyChart(svg, 'No XP data available');
             return;
         }
+
+        // Create event lookup for better labeling
+        const eventMap = {};
+        events.forEach(e => {
+            eventMap[e.id] = e.path || `Event ${e.id}`;
+        });
 
         // Group transactions by date
         const dailyXP = {};
@@ -302,9 +337,15 @@ class ProfileApp {
             circle.setAttribute('stroke', 'white');
             circle.setAttribute('stroke-width', 2);
             
-            // Add tooltip
+            // Add tooltip with event info
             circle.addEventListener('mouseenter', (e) => {
-                this.showTooltip(e, `${dates[i]}: ${val.toLocaleString()} XP`);
+                const dayTransactions = xpTransactions.filter(t => 
+                    new Date(t.createdAt).toDateString() === dates[i]
+                );
+                const eventInfo = dayTransactions.length > 0 && dayTransactions[0].eventId 
+                    ? ` (${eventMap[dayTransactions[0].eventId] || 'Unknown Event'})` 
+                    : '';
+                this.showTooltip(e, `${dates[i]}: ${val.toLocaleString()} XP${eventInfo}`);
             });
             circle.addEventListener('mouseleave', () => {
                 this.hideTooltip();
@@ -457,6 +498,92 @@ class ProfileApp {
 
     showLoading(show) {
         document.getElementById('loading').classList.toggle('hidden', !show);
+    }
+
+    renderEventXPChart(transactions, events = []) {
+        const svg = document.getElementById('event-chart');
+        svg.innerHTML = '';
+
+        const xpTransactions = transactions.filter(t => t.type === 'xp');
+        
+        if (xpTransactions.length === 0) {
+            this.showEmptyChart(svg, 'No XP data available');
+            return;
+        }
+
+        // Group XP by event
+        const xpByEvent = {};
+        const eventMap = {};
+        
+        events.forEach(e => {
+            eventMap[e.id] = e.path || `Event ${e.id}`;
+        });
+        
+        xpTransactions.forEach(t => {
+            if (t.eventId) {
+                xpByEvent[t.eventId] = (xpByEvent[t.eventId] || 0) + t.amount;
+            }
+        });
+
+        const eventIds = Object.keys(xpByEvent);
+        if (eventIds.length === 0) {
+            this.showEmptyChart(svg, 'No event XP data available');
+            return;
+        }
+
+        const values = eventIds.map(id => xpByEvent[id]);
+        const maxXP = Math.max(...values);
+
+        // Chart dimensions
+        const width = 500;
+        const height = 300;
+        const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+        const chartWidth = width - margin.left - margin.right;
+        const chartHeight = height - margin.top - margin.bottom;
+
+        // Add axes
+        this.addAxis(svg, margin.left, margin.top + chartHeight, margin.left + chartWidth, margin.top + chartHeight);
+        this.addAxis(svg, margin.left, margin.top, margin.left, margin.top + chartHeight);
+
+        // Draw bars
+        const barWidth = chartWidth / eventIds.length * 0.8;
+        const barSpacing = chartWidth / eventIds.length;
+
+        eventIds.forEach((eventId, i) => {
+            const value = xpByEvent[eventId];
+            const barHeight = (value / maxXP) * chartHeight;
+            const x = margin.left + i * barSpacing + (barSpacing - barWidth) / 2;
+            const y = margin.top + chartHeight - barHeight;
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', x);
+            rect.setAttribute('y', y);
+            rect.setAttribute('width', barWidth);
+            rect.setAttribute('height', barHeight);
+            rect.setAttribute('fill', '#667eea');
+            rect.setAttribute('class', 'bar');
+
+            rect.addEventListener('mouseenter', (e) => {
+                const eventName = eventMap[eventId] || `Event ${eventId}`;
+                this.showTooltip(e, `${eventName}: ${value.toLocaleString()} XP`);
+            });
+            rect.addEventListener('mouseleave', () => {
+                this.hideTooltip();
+            });
+
+            svg.appendChild(rect);
+
+            // Add event label
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', x + barWidth / 2);
+            text.setAttribute('y', margin.top + chartHeight + 15);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('class', 'axis-text');
+            text.setAttribute('transform', `rotate(-45, ${x + barWidth / 2}, ${margin.top + chartHeight + 15})`);
+            const eventName = (eventMap[eventId] || `Event ${eventId}`).split('/').pop() || 'Unknown';
+            text.textContent = eventName.length > 10 ? eventName.substring(0, 10) + '...' : eventName;
+            svg.appendChild(text);
+        });
     }
 
     showError(message) {
