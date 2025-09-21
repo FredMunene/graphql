@@ -127,11 +127,14 @@ class ProfileApp {
             
             // Fetch result data for pass/fail ratio
             const resultData = await this.fetchResultData();
+            
+            // Fetch object data for better labeling
+            const objectData = await this.fetchObjectData();
 
             // Update UI
             this.updateUserInfo(userData);
             this.updateStats(transactionData, resultData);
-            this.renderCharts(transactionData, resultData);
+            this.renderCharts(transactionData, resultData, objectData);
 
         } catch (error) {
             this.showError('Failed to load profile data');
@@ -146,6 +149,7 @@ class ProfileApp {
                 user {
                     id
                     githubLogin
+                    campus
                 }
             }
         `;
@@ -157,10 +161,12 @@ class ProfileApp {
     async fetchTransactionData() {
         const query = `
             query {
-                transaction(where: {type: {_eq: "xp"}}) {
+                transaction(order_by: {createdAt: asc}) {
+                    type
                     amount
                     createdAt
                     path
+                    objectId
                 }
             }
         `;
@@ -172,16 +178,33 @@ class ProfileApp {
     async fetchResultData() {
         const query = `
             query {
-                result {
+                result(where: {type: {_in: ["tester", "user_audit"]}}) {
                     grade
                     objectId
                     type
+                    createdAt
+                    path
                 }
             }
         `;
         
         const data = await this.graphqlQuery(query);
         return data?.result || [];
+    }
+
+    async fetchObjectData() {
+        const query = `
+            query {
+                object(where: {type: {_in: ["project", "exercise"]}}) {
+                    id
+                    name
+                    type
+                }
+            }
+        `;
+        
+        const data = await this.graphqlQuery(query);
+        return data?.object || [];
     }
 
     updateUserInfo(userData) {
@@ -197,18 +220,23 @@ class ProfileApp {
         const totalXP = xpTransactions.reduce((sum, t) => sum + t.amount, 0);
         document.getElementById('total-xp').textContent = totalXP.toLocaleString();
 
-        // Calculate projects completed (unique paths with XP)
-        const uniqueProjects = new Set(xpTransactions.map(t => t.path).filter(path => path)).size;
-        document.getElementById('projects-completed').textContent = uniqueProjects;
+        // Calculate projects completed (unique objectIds with XP > 0)
+        const completedProjects = new Set(
+            xpTransactions
+                .filter(t => t.amount > 0 && t.objectId)
+                .map(t => t.objectId)
+        ).size;
+        document.getElementById('projects-completed').textContent = completedProjects;
 
-        // Calculate success rate (grade >= 1 means pass)
-        const passCount = results.filter(r => r.grade >= 1).length;
-        const totalAttempts = results.length;
+        // Calculate success rate (grade >= 1 means pass, only tester and user_audit results)
+        const validResults = results.filter(r => r.type === 'tester' || r.type === 'user_audit');
+        const passCount = validResults.filter(r => r.grade >= 1).length;
+        const totalAttempts = validResults.length;
         const successRate = totalAttempts > 0 ? Math.round((passCount / totalAttempts) * 100) : 0;
         document.getElementById('success-rate').textContent = `${successRate}%`;
     }
 
-    renderCharts(transactions, results) {
+    renderCharts(transactions, results, objects = []) {
         this.renderXPChart(transactions);
         this.renderRatioChart(results);
     }
