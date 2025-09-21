@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zone01 Profile</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="login-page" class="page">
+        <div class="login-container">
+            <h1>Zone01 Login</h1>
+            <form id="login-form">
+                <input type="text" id="identifier" placeholder="Username or Email" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+            <div id="login-error" class="error"></div>
+        </div>
+    </div>
+
+    <!-- Profile Page -->
+    <div id="profile-page" class="page hidden">
+        <header class="profile-header">
+            <div class="user-info">
+                <h1 id="user-login"></h1>
+                <p id="user-id"></p>
+            </div>
+            <button id="logout-btn">Logout</button>
+        </header>
+
+        <main class="profile-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total XP</h3>
+                    <div id="total-xp" class="stat-value">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Projects Completed</h3>
+                    <div id="projects-completed" class="stat-value">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Success Rate</h3>
+                    <div id="success-rate" class="stat-value">0%</div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card">
+                    <h3>XP Over Time</h3>
+                    <svg id="xp-chart" width="600" height="300"></svg>
+                </div>
+                <div class="chart-card">
+                    <h3>Pass/Fail Ratio</h3>
+                    <svg id="ratio-chart" width="400" height="300"></svg>
+                </div>
+            </div>
+        </main>
+
+        <div id="loading" class="loading hidden">Loading...</div>
+        <div id="error" class="error hidden"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
