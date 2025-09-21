@@ -133,7 +133,7 @@ class ProfileApp {
             query {
                 user {
                     id
-                    login
+                    githubLogin
                 }
             }
         `;
@@ -163,6 +163,7 @@ class ProfileApp {
                 result {
                     grade
                     objectId
+                    type
                 }
             }
         `;
@@ -173,21 +174,22 @@ class ProfileApp {
 
     updateUserInfo(userData) {
         if (userData) {
-            document.getElementById('user-login').textContent = userData.login;
+            document.getElementById('user-login').textContent = userData.githubLogin;
             document.getElementById('user-id').textContent = `ID: ${userData.id}`;
         }
     }
 
     updateStats(transactions, results) {
-        // Calculate total XP
-        const totalXP = transactions.reduce((sum, t) => sum + t.amount, 0);
+        // Calculate total XP (only XP type transactions)
+        const xpTransactions = transactions.filter(t => t.type === 'xp');
+        const totalXP = xpTransactions.reduce((sum, t) => sum + t.amount, 0);
         document.getElementById('total-xp').textContent = totalXP.toLocaleString();
 
         // Calculate projects completed (unique paths with XP)
-        const uniqueProjects = new Set(transactions.map(t => t.path)).size;
+        const uniqueProjects = new Set(xpTransactions.map(t => t.path).filter(path => path)).size;
         document.getElementById('projects-completed').textContent = uniqueProjects;
 
-        // Calculate success rate
+        // Calculate success rate (grade >= 1 means pass)
         const passCount = results.filter(r => r.grade >= 1).length;
         const totalAttempts = results.length;
         const successRate = totalAttempts > 0 ? Math.round((passCount / totalAttempts) * 100) : 0;
@@ -203,14 +205,17 @@ class ProfileApp {
         const svg = document.getElementById('xp-chart');
         svg.innerHTML = '';
 
-        if (transactions.length === 0) {
+        // Filter only XP transactions
+        const xpTransactions = transactions.filter(t => t.type === 'xp');
+        
+        if (xpTransactions.length === 0) {
             this.showEmptyChart(svg, 'No XP data available');
             return;
         }
 
         // Group transactions by date
         const dailyXP = {};
-        transactions.forEach(t => {
+        xpTransactions.forEach(t => {
             const date = new Date(t.createdAt).toDateString();
             dailyXP[date] = (dailyXP[date] || 0) + t.amount;
         });
